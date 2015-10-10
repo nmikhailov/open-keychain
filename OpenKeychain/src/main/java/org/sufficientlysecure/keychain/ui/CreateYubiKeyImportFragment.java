@@ -197,10 +197,9 @@ public class CreateYubiKeyImportFragment
 
     @Override
     public void doNfcInBackground() throws IOException {
-
-        mNfcFingerprints = mCreateKeyActivity.nfcGetFingerprints();
-        mNfcAid = mCreateKeyActivity.nfcGetAid();
-        mNfcUserId = mCreateKeyActivity.nfcGetUserId();
+        mNfcFingerprints = mCreateKeyActivity.getDevice().getFingerprints();
+        mNfcAid = mCreateKeyActivity.getDevice().getAid();
+        mNfcUserId = mCreateKeyActivity.getDevice().getUserId();
 
         byte[] fp = new byte[20];
         ByteBuffer.wrap(fp).put(mNfcFingerprints, 0, 20);

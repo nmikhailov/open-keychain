@@ -428,7 +428,7 @@ public class ViewKeyActivity extends BaseNfcActivity implements
 
     private void certifyImmediate() {
         Intent intent = new Intent(this, CertifyKeyActivity.class);
-        intent.putExtra(CertifyKeyActivity.EXTRA_KEY_IDS, new long[] { mMasterKeyId });
+        intent.putExtra(CertifyKeyActivity.EXTRA_KEY_IDS, new long[]{ mMasterKeyId });
 
         startActivityForResult(intent, REQUEST_CERTIFY);
     }
@@ -548,18 +548,16 @@ public class ViewKeyActivity extends BaseNfcActivity implements
     @Override
     protected void doNfcInBackground() throws IOException {
 
-        mNfcFingerprints = nfcGetFingerprints();
-        mNfcUserId = nfcGetUserId();
-        mNfcAid = nfcGetAid();
+        mNfcFingerprints = mDevice.getFingerprints();
+        mNfcUserId = mDevice.getUserId();
+        mNfcAid = mDevice.getAid();
     }
 
     @Override
     protected void onNfcPostExecute() throws IOException {
-
-        long yubiKeyId = KeyFormattingUtils.getKeyIdFromFingerprint(mNfcFingerprints);
+        long yubiKeyId = KeyFormattingUtils.getKeyIdFromFingerprint(mDevice.getFingerprints());
 
         try {
-
             // if the yubikey matches a subkey in any key
             CachedPublicKeyRing ring = mProviderHelper.getCachedPublicKeyRing(
                     KeyRings.buildUnifiedKeyRingsFindBySubkeyUri(yubiKeyId));

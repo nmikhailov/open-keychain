@@ -31,6 +31,8 @@ import android.widget.ViewAnimator;
 
 import org.sufficientlysecure.keychain.Constants;
 import org.sufficientlysecure.keychain.R;
+import org.sufficientlysecure.keychain.javacard.KeyType;
+import org.sufficientlysecure.keychain.javacard.PinType;
 import org.sufficientlysecure.keychain.pgp.CanonicalizedSecretKey;
 import org.sufficientlysecure.keychain.pgp.CanonicalizedSecretKeyRing;
 import org.sufficientlysecure.keychain.provider.KeychainContract;
@@ -71,8 +73,6 @@ public class NfcOperationActivity extends BaseNfcActivity {
 
     private RequiredInputParcel mRequiredInput;
     private Intent mServiceIntent;
-
-    private static final byte[] BLANK_FINGERPRINT = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
     private CryptoInputParcel mInputParcel;
 
@@ -140,12 +140,11 @@ public class NfcOperationActivity extends BaseNfcActivity {
 
     @Override
     protected void doNfcInBackground() throws IOException {
-
         switch (mRequiredInput.mType) {
             case NFC_DECRYPT: {
                 for (int i = 0; i < mRequiredInput.mInputData.length; i++) {
                     byte[] encryptedSessionKey = mRequiredInput.mInputData[i];
-                    byte[] decryptedSessionKey = nfcDecryptSessionKey(encryptedSessionKey);
+                    byte[] decryptedSessionKey = mDevice.decryptSessionKey(encryptedSessionKey);
                     mInputParcel.addCryptoData(encryptedSessionKey, decryptedSessionKey);
                 }
                 break;
@@ -156,15 +155,15 @@ public class NfcOperationActivity extends BaseNfcActivity {
                 for (int i = 0; i < mRequiredInput.mInputData.length; i++) {
                     byte[] hash = mRequiredInput.mInputData[i];
                     int algo = mRequiredInput.mSignAlgos[i];
-                    byte[] signedHash = nfcCalculateSignature(hash, algo);
+                    byte[] signedHash = mDevice.nfcCalculateSignature(hash, algo);
                     mInputParcel.addCryptoData(hash, signedHash);
                 }
                 break;
             }
             case NFC_MOVE_KEY_TO_CARD: {
                 // TODO: assume PIN and Admin PIN to be default for this operation
-                mPin = new Passphrase("123456");
-                mAdminPin = new Passphrase("12345678");
+                mDevice.setPin(new Passphrase("123456"));
+                mDevice.setAdminPin(new Passphrase("12345678"));
 
                 ProviderHelper providerHelper = new ProviderHelper(this);
                 CanonicalizedSecretKeyRing secretKeyRing;
@@ -186,10 +185,7 @@ public class NfcOperationActivity extends BaseNfcActivity {
 
                     CanonicalizedSecretKey key = secretKeyRing.getSecretKey(subkeyId);
 
-                    long keyGenerationTimestampMillis = key.getCreationTime().getTime();
-                    long keyGenerationTimestamp = keyGenerationTimestampMillis / 1000;
-                    byte[] timestampBytes = ByteBuffer.allocate(4).putInt((int) keyGenerationTimestamp).array();
-                    byte[] cardSerialNumber = Arrays.copyOf(nfcGetAid(), 16);
+                    byte[] cardSerialNumber = Arrays.copyOf(mDevice.getAid(), 16);
 
                     Passphrase passphrase;
                     try {
@@ -199,41 +195,15 @@ public class NfcOperationActivity extends BaseNfcActivity {
                         throw new IOException("Unable to get cached passphrase!");
                     }
 
-                    if (key.canSign() || key.canCertify()) {
-                        if (shouldPutKey(key.getFingerprint(), 0)) {
-                            nfcPutKey(0xB6, key, passphrase);
-                            nfcPutData(0xCE, timestampBytes);
-                            nfcPutData(0xC7, key.getFingerprint());
-                        } else {
-                            throw new IOException("Key slot occupied; card must be reset to put new signature key.");
-                        }
-                    } else if (key.canEncrypt()) {
-                        if (shouldPutKey(key.getFingerprint(), 1)) {
-                            nfcPutKey(0xB8, key, passphrase);
-                            nfcPutData(0xCF, timestampBytes);
-                            nfcPutData(0xC8, key.getFingerprint());
-                        } else {
-                            throw new IOException("Key slot occupied; card must be reset to put new decryption key.");
-                        }
-                    } else if (key.canAuthenticate()) {
-                        if (shouldPutKey(key.getFingerprint(), 2)) {
-                            nfcPutKey(0xA4, key, passphrase);
-                            nfcPutData(0xD0, timestampBytes);
-                            nfcPutData(0xC9, key.getFingerprint());
-                        } else {
-                            throw new IOException("Key slot occupied; card must be reset to put new authentication key.");
-                        }
-                    } else {
-                        throw new IOException("Inappropriate key flags for smart card key.");
-                    }
+                    mDevice.changeKey(key, passphrase);
 
                     // TODO: Is this really used anywhere?
                     mInputParcel.addCryptoData(subkeyBytes, cardSerialNumber);
                 }
 
                 // change PINs afterwards
-                nfcModifyPIN(0x81, newPin);
-                nfcModifyPIN(0x83, newAdminPin);
+                mDevice.nfcModifyPIN(PinType.BASIC, newPin);
+                mDevice.nfcModifyPIN(PinType.ADMIN, newAdminPin);
 
                 break;
             }
@@ -290,18 +260,6 @@ public class NfcOperationActivity extends BaseNfcActivity {
 
         vErrorText.setText(error + "\n\n" + getString(R.string.nfc_try_again_text));
         vAnimator.setDisplayedChild(3);
-    }
-
-    private boolean shouldPutKey(byte[] fingerprint, int idx) throws IOException {
-        byte[] cardFingerprint = nfcGetFingerprint(idx);
-        // Slot is empty, or contains this key already. PUT KEY operation is safe
-        if (Arrays.equals(cardFingerprint, BLANK_FINGERPRINT) ||
-            Arrays.equals(cardFingerprint, fingerprint)) {
-            return true;
-        }
-
-        // Slot already contains a different key; don't overwrite it.
-        return false;
     }
 
     @Override

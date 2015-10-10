@@ -65,7 +65,6 @@ public class CreateKeyActivity extends BaseNfcActivity {
 
     Fragment mCurrentFragment;
 
-
     byte[] mScannedFingerprints;
     byte[] mNfcAid;
     String mNfcUserId;
@@ -154,9 +153,9 @@ public class CreateKeyActivity extends BaseNfcActivity {
             return;
         }
 
-        mScannedFingerprints = nfcGetFingerprints();
-        mNfcAid = nfcGetAid();
-        mNfcUserId = nfcGetUserId();
+        mScannedFingerprints = mDevice.getFingerprints();
+        mNfcAid = mDevice.getAid();
+        mNfcUserId = mDevice.getUserId();
     }
 
     @Override
