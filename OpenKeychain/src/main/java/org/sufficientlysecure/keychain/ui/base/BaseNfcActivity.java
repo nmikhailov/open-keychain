@@ -26,12 +26,16 @@ import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.hardware.usb.UsbConstants;
+import android.hardware.usb.UsbDevice;
+import android.hardware.usb.UsbManager;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
 import android.nfc.TagLostException;
 import android.nfc.tech.IsoDep;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Parcelable;
 import android.widget.Toast;
 
 import org.sufficientlysecure.keychain.Constants;
@@ -42,6 +46,7 @@ import org.sufficientlysecure.keychain.javacard.BaseJavacardDevice;
 import org.sufficientlysecure.keychain.javacard.JavacardDevice;
 import org.sufficientlysecure.keychain.javacard.NfcTransport;
 import org.sufficientlysecure.keychain.javacard.PinException;
+import org.sufficientlysecure.keychain.javacard.UsbTransport;
 import org.sufficientlysecure.keychain.pgp.exception.PgpKeyNotFoundException;
 import org.sufficientlysecure.keychain.provider.CachedPublicKeyRing;
 import org.sufficientlysecure.keychain.provider.KeychainContract.KeyRings;
@@ -65,6 +70,7 @@ public abstract class BaseNfcActivity extends BaseActivity {
     public static final int REQUEST_CODE_PIN = 1;
 
     public static final String EXTRA_TAG_HANDLING_ENABLED = "tag_handling_enabled";
+    private static final String ACTION_USB_PERMITTED = Constants.PACKAGE_NAME + ".USB_PERMITTED";
 
     private NfcAdapter mNfcAdapter;
     private boolean mTagHandlingEnabled;
@@ -207,9 +213,29 @@ public abstract class BaseNfcActivity extends BaseActivity {
      */
     @Override
     public void onNewIntent(final Intent intent) {
-        if (NfcAdapter.ACTION_TAG_DISCOVERED.equals(intent.getAction())
-                && mTagHandlingEnabled) {
-            handleIntentInBackground(intent);
+        switch (intent.getAction()) {
+            case NfcAdapter.ACTION_TAG_DISCOVERED:
+                if (mTagHandlingEnabled) {
+                    handleIntentInBackground(intent);
+                }
+                break;
+            case UsbManager.ACTION_USB_DEVICE_ATTACHED:
+                final UsbManager usbManager = (UsbManager) getSystemService(USB_SERVICE);
+                final UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+
+                Intent usbI = new Intent(this, getClass())
+                        .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                usbI.setAction(ACTION_USB_PERMITTED);
+                usbI.putExtra(UsbManager.EXTRA_DEVICE, device);
+                PendingIntent pi = PendingIntent.getActivity(this, 0, usbI, PendingIntent.FLAG_CANCEL_CURRENT);
+
+                usbManager.requestPermission(device, pi);
+                break;
+            case ACTION_USB_PERMITTED:
+                handleIntentInBackground(intent);
+                break;
+            default:
+                break;
         }
     }
 
@@ -392,14 +418,21 @@ public abstract class BaseNfcActivity extends BaseActivity {
      *
      */
     protected void handleTagDiscoveredIntent(Intent intent) throws IOException {
+        Tag nfcDetectedTag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
+        UsbDevice usbDevice = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
 
-        Tag detectedTag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
+        if (nfcDetectedTag != null) {
+            // Connect to the detected tag, setting a couple of settings
+            mDevice = new BaseJavacardDevice(new NfcTransport(IsoDep.get(nfcDetectedTag)));
+            mDevice.connectToDevice();
+            doNfcInBackground();
 
-        // Connect to the detected tag, setting a couple of settings
-        mDevice = new CachingBaseJavacardDevice(new NfcTransport(IsoDep.get(detectedTag)));
-
-        doNfcInBackground();
-
+        } else if (usbDevice != null) {
+            final UsbManager usbManager = (UsbManager) getSystemService(USB_SERVICE);
+            mDevice = new BaseJavacardDevice(new UsbTransport(usbDevice, usbManager));
+            mDevice.connectToDevice();
+            doNfcInBackground();
+        }
     }
 
     public boolean isNfcConnected() {
