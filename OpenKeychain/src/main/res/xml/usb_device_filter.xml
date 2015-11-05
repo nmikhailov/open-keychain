@@ -1,4 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <usb-device class="11"/>
+    <usb-device vendor-id="1050"/>
+    <usb-device vendor-id="1050" product-id="0010" />
+    <usb-device vendor-id="1050" product-id="0110" />
+    <usb-device vendor-id="1050" product-id="0111" />
+    <usb-device vendor-id="1050" product-id="0114" />
+    <usb-device vendor-id="1050" product-id="0116" />
+    <usb-device vendor-id="1050" product-id="0401" />
+    <usb-device vendor-id="1050" product-id="0403" />
+    <usb-device vendor-id="1050" product-id="0405" />
+    <usb-device vendor-id="1050" product-id="0407" />
+    <usb-device vendor-id="1050" product-id="0410" />
 </resources>

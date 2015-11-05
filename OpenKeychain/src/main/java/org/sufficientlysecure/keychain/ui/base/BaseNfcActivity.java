@@ -20,13 +20,12 @@
 
 package org.sufficientlysecure.keychain.ui.base;
 
-import java.io.IOException;
-
 import android.app.Activity;
 import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.hardware.usb.UsbConstants;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.nfc.NfcAdapter;
@@ -35,14 +34,12 @@ import android.nfc.TagLostException;
 import android.nfc.tech.IsoDep;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Parcelable;
 import android.widget.Toast;
 
 import org.sufficientlysecure.keychain.Constants;
 import org.sufficientlysecure.keychain.R;
-import org.sufficientlysecure.keychain.javacard.CachingBaseJavacardDevice;
-import org.sufficientlysecure.keychain.javacard.CardException;
 import org.sufficientlysecure.keychain.javacard.BaseJavacardDevice;
+import org.sufficientlysecure.keychain.javacard.CardException;
 import org.sufficientlysecure.keychain.javacard.JavacardDevice;
 import org.sufficientlysecure.keychain.javacard.NfcTransport;
 import org.sufficientlysecure.keychain.javacard.PinException;
@@ -65,21 +62,20 @@ import org.sufficientlysecure.keychain.util.Log;
 import org.sufficientlysecure.keychain.util.Passphrase;
 import org.sufficientlysecure.keychain.util.Preferences;
 
+import java.io.IOException;
+
 public abstract class BaseNfcActivity extends BaseActivity {
 
     public static final int REQUEST_CODE_PIN = 1;
 
     public static final String EXTRA_TAG_HANDLING_ENABLED = "tag_handling_enabled";
     private static final String ACTION_USB_PERMITTED = Constants.PACKAGE_NAME + ".USB_PERMITTED";
-
+    protected JavacardDevice mDevice = null;
     private NfcAdapter mNfcAdapter;
     private boolean mTagHandlingEnabled;
-
     private byte[] mNfcFingerprints;
     private String mNfcUserId;
     private byte[] mNfcAid;
-
-    protected JavacardDevice mDevice = null;
 
     public JavacardDevice getDevice() {
         return mDevice;
@@ -213,6 +209,7 @@ public abstract class BaseNfcActivity extends BaseActivity {
      */
     @Override
     public void onNewIntent(final Intent intent) {
+        Log.d("USBNFC", "New intent: " + intent.toString());
         switch (intent.getAction()) {
             case NfcAdapter.ACTION_TAG_DISCOVERED:
                 if (mTagHandlingEnabled) {
@@ -220,7 +217,6 @@ public abstract class BaseNfcActivity extends BaseActivity {
                 }
                 break;
             case UsbManager.ACTION_USB_DEVICE_ATTACHED:
-                final UsbManager usbManager = (UsbManager) getSystemService(USB_SERVICE);
                 final UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
 
                 Intent usbI = new Intent(this, getClass())
@@ -229,7 +225,7 @@ public abstract class BaseNfcActivity extends BaseActivity {
                 usbI.putExtra(UsbManager.EXTRA_DEVICE, device);
                 PendingIntent pi = PendingIntent.getActivity(this, 0, usbI, PendingIntent.FLAG_CANCEL_CURRENT);
 
-                usbManager.requestPermission(device, pi);
+                getUsbManager().requestPermission(device, pi);
                 break;
             case ACTION_USB_PERMITTED:
                 handleIntentInBackground(intent);
@@ -258,7 +254,7 @@ public abstract class BaseNfcActivity extends BaseActivity {
             status = -1;
         }
         // When entering a PIN, a status of 63CX indicates X attempts remaining.
-        if ((status & (short)0xFFF0) == 0x63C0) {
+        if ((status & (short) 0xFFF0) == 0x63C0) {
             int tries = status & 0x000F;
             onNfcError(getResources().getQuantityString(R.plurals.error_pin, tries, tries));
             return;
@@ -344,6 +340,7 @@ public abstract class BaseNfcActivity extends BaseActivity {
         Log.d(Constants.TAG, "BaseNfcActivity.onPause");
 
         disableNfcForegroundDispatch();
+//        disableUsbForegroundDispatch();
     }
 
     /**
@@ -355,6 +352,7 @@ public abstract class BaseNfcActivity extends BaseActivity {
         Log.d(Constants.TAG, "BaseNfcActivity.onResume");
 
         enableNfcForegroundDispatch();
+//        enableUsbForegroundDispatch();
     }
 
     protected void obtainYubiKeyPin(RequiredInputParcel requiredInput) {
@@ -403,19 +401,19 @@ public abstract class BaseNfcActivity extends BaseActivity {
         }
     }
 
-    /** Handle NFC communication and return a result.
-     *
+    /**
+     * Handle NFC communication and return a result.
+     * <p/>
      * This method is called by onNewIntent above upon discovery of an NFC tag.
      * It handles initialization and login to the application, subsequently
      * calls either nfcCalculateSignature() or decryptSessionKey(), then
      * finishes the activity with an appropriate result.
-     *
+     * <p/>
      * On general communication, see also
      * http://www.cardwerk.com/smartcards/smartcard_standard_ISO7816-4_annex-a.aspx
-     *
+     * <p/>
      * References to pages are generally related to the OpenPGP Application
      * on ISO SmartCard Systems specification.
-     *
      */
     protected void handleTagDiscoveredIntent(Intent intent) throws IOException {
         Tag nfcDetectedTag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
@@ -428,8 +426,7 @@ public abstract class BaseNfcActivity extends BaseActivity {
             doNfcInBackground();
 
         } else if (usbDevice != null) {
-            final UsbManager usbManager = (UsbManager) getSystemService(USB_SERVICE);
-            mDevice = new BaseJavacardDevice(new UsbTransport(usbDevice, usbManager));
+            mDevice = new BaseJavacardDevice(new UsbTransport(usbDevice, getUsbManager()));
             mDevice.connectToDevice();
             doNfcInBackground();
         }
@@ -483,5 +480,41 @@ public abstract class BaseNfcActivity extends BaseActivity {
         }
         mNfcAdapter.disableForegroundDispatch(this);
         Log.d(Constants.TAG, "NfcForegroundDispatch has been disabled!");
+    }
+
+    private UsbManager getUsbManager() {
+        return (UsbManager) getSystemService(USB_SERVICE);
+    }
+
+    private BroadcastReceiver rcv;
+    private void enableUsbForegroundDispatch() {
+        if (getUsbManager() == null) {
+            return;
+        }
+        final Intent usbI = new Intent(this, getClass())
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent nfcPendingIntent = PendingIntent.getActivity(this, 0, usbI, PendingIntent.FLAG_CANCEL_CURRENT);
+
+        final IntentFilter intentFilter = new IntentFilter();
+//        intentFilter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
+//        intentFilter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);
+        registerReceiver(rcv = new BroadcastReceiver() {
+            @Override
+            public void onReceive(final Context context, final Intent intent) {
+                usbI.setAction(intent.getAction());
+                usbI.putExtras(intent);
+                startActivity(usbI);
+            }
+        }, intentFilter);
+
+        Log.d(Constants.TAG, "UsbForegroundDispatch has been enabled!");
+    }
+
+    private void disableUsbForegroundDispatch() {
+        if (getUsbManager() == null) {
+            return;
+        }
+        unregisterReceiver(rcv);
+        Log.d(Constants.TAG, "UsbForegroundDispatch has been disabled!");
     }
 }

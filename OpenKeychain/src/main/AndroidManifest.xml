@@ -108,14 +108,6 @@
                     android:host="my.yubico.com"
                     android:pathPrefix="/neo"/>
             </intent-filter>
-
-            <intent-filter>
-                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"/>
-            </intent-filter>
-
-            <meta-data
-                android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
-                android:resource="@xml/usb_device_filter"/>
         </activity>
         <activity
             android:name=".ui.EditKeyActivity"
@@ -502,14 +494,6 @@
                 <!-- MIME type as defined in http://tools.ietf.org/html/rfc3156 -->
                 <data android:mimeType="application/pgp-keys" />
             </intent-filter>
-
-            <intent-filter>
-                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"/>
-            </intent-filter>
-
-            <meta-data
-                android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
-                android:resource="@xml/usb_device_filter"/>
         </activity>
 
         <activity
@@ -862,6 +846,23 @@
             android:exported="true"
             android:writePermission="${applicationId}.WRITE_TEMPORARY_STORAGE" />
 
+
+        <receiver android:name=".service.UsbMonitorReceiver">
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+                <action android:name="android.hardware.usb.action.USB_DEVICE_DETACHED" />
+            </intent-filter>
+            <meta-data android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+                       android:resource="@xml/usb_device_filter" />
+        </receiver>
+
+        <!--        <intent-filter>
+                    <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"/>
+                </intent-filter>
+
+                <meta-data
+                    android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+                    android:resource="@xml/usb_device_filter"/>-->
     </application>
 
 </manifest>
