@@ -50,6 +50,7 @@ import org.sufficientlysecure.keychain.provider.KeychainContract.KeyRings;
 import org.sufficientlysecure.keychain.provider.ProviderHelper;
 import org.sufficientlysecure.keychain.service.PassphraseCacheService;
 import org.sufficientlysecure.keychain.service.PassphraseCacheService.KeyNotFoundException;
+import org.sufficientlysecure.keychain.service.UsbMonitorService;
 import org.sufficientlysecure.keychain.service.input.CryptoInputParcel;
 import org.sufficientlysecure.keychain.service.input.RequiredInputParcel;
 import org.sufficientlysecure.keychain.ui.CreateKeyActivity;
@@ -210,13 +211,16 @@ public abstract class BaseNfcActivity extends BaseActivity {
     @Override
     public void onNewIntent(final Intent intent) {
         Log.d("USBNFC", "New intent: " + intent.toString());
+        if (intent.getAction() == null) {
+            return;
+        }
         switch (intent.getAction()) {
             case NfcAdapter.ACTION_TAG_DISCOVERED:
                 if (mTagHandlingEnabled) {
                     handleIntentInBackground(intent);
                 }
                 break;
-            case UsbManager.ACTION_USB_DEVICE_ATTACHED:
+            case UsbMonitorService.ACTION_USB_DEVICE_ATTACHED:
                 final UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
 
                 Intent usbI = new Intent(this, getClass())
@@ -340,7 +344,7 @@ public abstract class BaseNfcActivity extends BaseActivity {
         Log.d(Constants.TAG, "BaseNfcActivity.onPause");
 
         disableNfcForegroundDispatch();
-//        disableUsbForegroundDispatch();
+        disableUsbForegroundDispatch();
     }
 
     /**
@@ -352,7 +356,7 @@ public abstract class BaseNfcActivity extends BaseActivity {
         Log.d(Constants.TAG, "BaseNfcActivity.onResume");
 
         enableNfcForegroundDispatch();
-//        enableUsbForegroundDispatch();
+        enableUsbForegroundDispatch();
     }
 
     protected void obtainYubiKeyPin(RequiredInputParcel requiredInput) {
@@ -491,12 +495,13 @@ public abstract class BaseNfcActivity extends BaseActivity {
         if (getUsbManager() == null) {
             return;
         }
+
         final Intent usbI = new Intent(this, getClass())
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent nfcPendingIntent = PendingIntent.getActivity(this, 0, usbI, PendingIntent.FLAG_CANCEL_CURRENT);
 
         final IntentFilter intentFilter = new IntentFilter();
-//        intentFilter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
+        intentFilter.addAction(UsbMonitorService.ACTION_USB_DEVICE_ATTACHED);
 //        intentFilter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);
         registerReceiver(rcv = new BroadcastReceiver() {
             @Override
@@ -507,6 +512,7 @@ public abstract class BaseNfcActivity extends BaseActivity {
             }
         }, intentFilter);
 
+        startService(UsbMonitorService.getIntent(this, getClass()));
         Log.d(Constants.TAG, "UsbForegroundDispatch has been enabled!");
     }
 
@@ -515,6 +521,7 @@ public abstract class BaseNfcActivity extends BaseActivity {
             return;
         }
         unregisterReceiver(rcv);
+        stopService(new Intent(this, UsbMonitorService.class));
         Log.d(Constants.TAG, "UsbForegroundDispatch has been disabled!");
     }
 }

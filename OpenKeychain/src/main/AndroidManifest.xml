@@ -846,16 +846,8 @@
             android:exported="true"
             android:writePermission="${applicationId}.WRITE_TEMPORARY_STORAGE" />
 
-
-        <receiver android:name=".service.UsbMonitorReceiver">
-            <intent-filter>
-                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
-                <action android:name="android.hardware.usb.action.USB_DEVICE_DETACHED" />
-            </intent-filter>
-            <meta-data android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
-                       android:resource="@xml/usb_device_filter" />
-        </receiver>
-
+        <service android:name=".service.UsbMonitorService" android:enabled="true">
+        </service>
         <!--        <intent-filter>
                     <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"/>
                 </intent-filter>
