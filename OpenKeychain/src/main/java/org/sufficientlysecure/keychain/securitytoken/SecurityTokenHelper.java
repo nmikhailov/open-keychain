@@ -125,8 +125,8 @@ public class SecurityTokenHelper {
                     keyType.toString()));
         }
 
-        putKey(keyType.getmSlot(), secretKey, passphrase);
-        putData(keyType.getmFingerprintObjectId(), secretKey.getFingerprint());
+        putKey(keyType.getSlot(), secretKey, passphrase);
+        putData(keyType.getFingerprintObjectId(), secretKey.getFingerprint());
         putData(keyType.getTimestampObjectId(), timestampBytes);
     }
 
@@ -634,23 +634,16 @@ public class SecurityTokenHelper {
      * must construct a public key packet using the returned public key data objects, compute the
      * key fingerprint, and store it on the card using: putData(0xC8, key.getFingerprint())
      *
-     * @param slot The slot on the card where the key should be generated:
-     *             0xB6: Signature Key
-     *             0xB8: Decipherment Key
-     *             0xA4: Authentication Key
+     * @param keyType type of a key to generate
      * @return the public key data objects, in TLV format. For RSA this will be the public modulus
      * (0x81) and exponent (0x82). These may come out of order; proper TLV parsing is required.
      */
-    public byte[] generateKey(int slot) throws IOException {
-        if (slot != 0xB6 && slot != 0xB8 && slot != 0xA4) {
-            throw new IOException("Invalid key slot");
-        }
-
+    public byte[] generateKey(@NonNull KeyType keyType) throws IOException {
         if (!mPw3Validated) {
             verifyPin(0x83); // (Verify PW3 with mode 83)
         }
 
-        String generateKeyApdu = "0047800002" + String.format("%02x", slot) + "0000";
+        String generateKeyApdu = "0047800002" + String.format("%02x", keyType.getSlot()) + "0000";
         String getResponseApdu = "00C00000";
 
         String first = communicate(generateKeyApdu);
