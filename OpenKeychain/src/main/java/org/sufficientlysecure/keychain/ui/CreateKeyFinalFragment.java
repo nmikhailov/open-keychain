@@ -49,6 +49,7 @@ import org.sufficientlysecure.keychain.service.SaveKeyringParcel.Algorithm;
 import org.sufficientlysecure.keychain.service.SaveKeyringParcel.ChangeUnlockParcel;
 import org.sufficientlysecure.keychain.service.UploadKeyringParcel;
 import org.sufficientlysecure.keychain.service.input.CryptoInputParcel;
+import org.sufficientlysecure.keychain.service.input.RequiredInputParcel;
 import org.sufficientlysecure.keychain.ui.CreateKeyActivity.FragAction;
 import org.sufficientlysecure.keychain.ui.base.CryptoOperationHelper;
 import org.sufficientlysecure.keychain.util.Log;
@@ -61,10 +62,12 @@ import java.util.Iterator;
 public class CreateKeyFinalFragment extends Fragment {
 
     public static final int REQUEST_EDIT_KEY = 0x00008007;
+    public static final int REQUEST_GEN_KEYS = 0x00008008;
 
     TextView mNameEdit;
     TextView mEmailEdit;
     CheckBox mUploadCheckbox;
+    CheckBox mOnCardKeygen;
     View mBackButton;
     View mCreateButton;
     View mCustomKeyLayout;
@@ -98,6 +101,7 @@ public class CreateKeyFinalFragment extends Fragment {
         mNameEdit = (TextView) view.findViewById(R.id.name);
         mEmailEdit = (TextView) view.findViewById(R.id.email);
         mUploadCheckbox = (CheckBox) view.findViewById(R.id.create_key_upload);
+        mOnCardKeygen = (CheckBox) view.findViewById(R.id.create_key_on_token);
         mBackButton = view.findViewById(R.id.create_key_back_button);
         mCreateButton = view.findViewById(R.id.create_key_next_button);
         mCustomKeyLayout = view.findViewById(R.id.custom_key_layout);
@@ -145,6 +149,9 @@ public class CreateKeyFinalFragment extends Fragment {
                 }
             }
         });
+
+        // On-card keygen is only available on security token keygen
+        mOnCardKeygen.setVisibility(createKeyActivity.mCreateSecurityToken ? View.VISIBLE : View.GONE);
 
         // If this is a debug build, don't upload by default
         if (Constants.DEBUG) {
@@ -318,6 +325,11 @@ public class CreateKeyFinalFragment extends Fragment {
 
         final boolean createSecurityToken = activity.mCreateSecurityToken;
 
+        if (createSecurityToken && mOnCardKeygen.isChecked()) {
+            createOnCardKey();
+            return;
+        }
+
         CryptoOperationHelper.Callback<SaveKeyringParcel, EditKeyResult> createKeyCallback
                 = new CryptoOperationHelper.Callback<SaveKeyringParcel, EditKeyResult>() {
             @Override
@@ -360,6 +372,14 @@ public class CreateKeyFinalFragment extends Fragment {
 
         mCreateOpHelper = new CryptoOperationHelper<>(1, this, createKeyCallback, R.string.progress_building_key);
         mCreateOpHelper.cryptoOperation();
+    }
+
+    private void createOnCardKey() {
+        Intent intent = new Intent(getActivity(), SecurityTokenOperationActivity.class);
+        RequiredInputParcel resetP = RequiredInputParcel.createSecurityTokenGenKeysOperation();
+        intent.putExtra(SecurityTokenOperationActivity.EXTRA_REQUIRED_INPUT, resetP);
+        intent.putExtra(SecurityTokenOperationActivity.EXTRA_CRYPTO_INPUT, new CryptoInputParcel());
+        startActivityForResult(intent, REQUEST_GEN_KEYS);
     }
 
     private void displayResult(EditKeyResult result) {

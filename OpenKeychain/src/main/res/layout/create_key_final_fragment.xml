@@ -72,6 +72,16 @@
                 android:text="@string/create_key_upload"
                 android:id="@+id/create_key_upload" />
 
+            <CheckBox
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:textAppearance="?android:attr/textAppearanceMedium"
+                android:checked="false"
+                android:text="@string/create_key_on_token"
+                android:id="@+id/create_key_on_token" />
+
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dip"

@@ -766,6 +766,7 @@
 
     <!-- Create key -->
     <string name="create_key_upload">"Synchronize with the Internet"</string>
+    <string name="create_key_on_token">"Generate key on security token"</string>
     <string name="create_key_empty">"This field is required"</string>
     <string name="create_key_passphrases_not_equal">"Passwords do not match"</string>
     <string name="create_key_final_text">"You entered the following identity:"</string>

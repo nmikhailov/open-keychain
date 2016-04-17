@@ -132,7 +132,8 @@ public class CryptoOperationHelper<T extends Parcelable, S extends OperationResu
             // always use CryptoOperationHelper.startActivityForResult!
             case SECURITY_TOKEN_MOVE_KEY_TO_CARD:
             case SECURITY_TOKEN_DECRYPT:
-            case SECURITY_TOKEN_SIGN: {
+            case SECURITY_TOKEN_SIGN:
+            case SECURITY_TOKEN_GEN_KEYS: {
                 Intent intent = new Intent(activity, SecurityTokenOperationActivity.class);
                 intent.putExtra(SecurityTokenOperationActivity.EXTRA_REQUIRED_INPUT, requiredInput);
                 intent.putExtra(SecurityTokenOperationActivity.EXTRA_CRYPTO_INPUT, cryptoInputParcel);

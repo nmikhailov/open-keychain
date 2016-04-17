@@ -660,6 +660,12 @@ public class SecurityTokenHelper {
         return Hex.decode(publicKeyData);
     }
 
+    public void generateKeyFullCycle(@NonNull KeyType keyType) throws IOException {
+        final byte[] pub = generateKey(keyType);
+
+
+    }
+
     private String getDataField(String output) {
         return output.substring(0, output.length() - 4);
     }

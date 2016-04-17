@@ -138,8 +138,7 @@ public class SecurityTokenOperationActivity extends BaseSecurityTokenNfcActivity
 
     private void obtainPassphraseIfRequired() {
         // obtain passphrase for this subkey
-        if (mRequiredInput.mType != RequiredInputParcel.RequiredInputType.SECURITY_TOKEN_MOVE_KEY_TO_CARD
-                && mRequiredInput.mType != RequiredInputParcel.RequiredInputType.SECURITY_TOKEN_RESET_CARD) {
+        if (mRequiredInput.mType.isPinCodeRequired()) {
             obtainSecurityTokenPin(mRequiredInput);
             checkPinAvailability();
         } else {
@@ -265,6 +264,16 @@ public class SecurityTokenOperationActivity extends BaseSecurityTokenNfcActivity
             }
             case SECURITY_TOKEN_RESET_CARD: {
                 mSecurityTokenHelper.resetAndWipeToken();
+
+                break;
+            }
+            case SECURITY_TOKEN_GEN_KEYS: {
+                mSecurityTokenHelper.setPin(new Passphrase("123456"));
+                mSecurityTokenHelper.setAdminPin(new Passphrase("12345678"));
+
+                for (final KeyType keyType : KeyType.values()) {
+                    mSecurityTokenHelper.generateKeyFullCycle(keyType);
+                }
 
                 break;
             }
