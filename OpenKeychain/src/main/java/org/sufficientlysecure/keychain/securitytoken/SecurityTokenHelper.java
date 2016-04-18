@@ -24,7 +24,14 @@ package org.sufficientlysecure.keychain.securitytoken;
 
 import android.support.annotation.NonNull;
 
+import org.bouncycastle.bcpg.BCPGInputStream;
 import org.bouncycastle.bcpg.HashAlgorithmTags;
+import org.bouncycastle.bcpg.PublicKeyAlgorithmTags;
+import org.bouncycastle.bcpg.PublicSubkeyPacket;
+import org.bouncycastle.bcpg.RSAPublicBCPGKey;
+import org.bouncycastle.openpgp.PGPException;
+import org.bouncycastle.openpgp.PGPPublicKey;
+import org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator;
 import org.bouncycastle.util.Arrays;
 import org.bouncycastle.util.encoders.Hex;
 import org.sufficientlysecure.keychain.Constants;
@@ -38,6 +45,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.interfaces.RSAPrivateCrtKey;
+import java.util.Date;
 
 import nordpol.Apdu;
 
@@ -663,7 +671,27 @@ public class SecurityTokenHelper {
     public void generateKeyFullCycle(@NonNull KeyType keyType) throws IOException {
         final byte[] pub = generateKey(keyType);
 
+        Iso7816TLV tlv = Iso7816TLV.readSingle(pub, true);
+        final byte[] exponent = Iso7816TLV.findRecursive(tlv, 0x82).mV;
+        final byte[] modulus = Iso7816TLV.findRecursive(tlv, 0x81).mV;
 
+
+        final RSAPublicBCPGKey publicBCPGKey = new RSAPublicBCPGKey(new BigInteger(Hex.toHexString(modulus), 16),
+                new BigInteger(Hex.toHexString(exponent), 16));
+
+        final PublicSubkeyPacket publicSubkeyPacket = new PublicSubkeyPacket(PublicKeyAlgorithmTags.RSA_GENERAL, new Date(), publicBCPGKey);
+        PGPPublicKey publicKey = null;
+        try {
+            publicKey = new PGPPublicKey(publicSubkeyPacket, new BcKeyFingerprintCalculator());
+        } catch (PGPException e) {
+            throw new IOException("Failed to generate key");
+        }
+
+        long keyGenerationTimestamp = publicKey.getCreationTime().getTime() / 1000;
+        byte[] timestampBytes = ByteBuffer.allocate(4).putInt((int) keyGenerationTimestamp).array();
+
+        putData(keyType.getFingerprintObjectId(), publicKey.getFingerprint());
+        putData(keyType.getTimestampObjectId(), timestampBytes);
     }
 
     private String getDataField(String output) {
