@@ -30,6 +30,7 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.ViewAnimator;
 
+import org.bouncycastle.openpgp.PGPPublicKey;
 import org.sufficientlysecure.keychain.Constants;
 import org.sufficientlysecure.keychain.R;
 import org.sufficientlysecure.keychain.pgp.CanonicalizedSecretKey;
@@ -272,7 +273,8 @@ public class SecurityTokenOperationActivity extends BaseSecurityTokenNfcActivity
                 mSecurityTokenHelper.setAdminPin(new Passphrase("12345678"));
 
                 for (final KeyType keyType : KeyType.values()) {
-                    mSecurityTokenHelper.generateKeyFullCycle(keyType);
+                    PGPPublicKey publicKey = mSecurityTokenHelper.generateKeyOnCard(keyType);
+                    //mInputParcel.addCryptoData(publicKey.getEncoded(), );
                 }
 
                 break;

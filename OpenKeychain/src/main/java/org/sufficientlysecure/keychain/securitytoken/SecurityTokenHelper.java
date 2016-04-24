@@ -646,7 +646,7 @@ public class SecurityTokenHelper {
      * @return the public key data objects, in TLV format. For RSA this will be the public modulus
      * (0x81) and exponent (0x82). These may come out of order; proper TLV parsing is required.
      */
-    public byte[] generateKey(@NonNull KeyType keyType) throws IOException {
+    private byte[] generateKeyCommand(@NonNull KeyType keyType) throws IOException {
         if (!mPw3Validated) {
             verifyPin(0x83); // (Verify PW3 with mode 83)
         }
@@ -668,23 +668,36 @@ public class SecurityTokenHelper {
         return Hex.decode(publicKeyData);
     }
 
-    public void generateKeyFullCycle(@NonNull KeyType keyType) throws IOException {
-        final byte[] pub = generateKey(keyType);
+    /**
+     * Generates key on card and then sets fingerprint and timestamp for that keys
+     * @param keyType slot to generate a key in
+     * @return public key from generated pair
+     * @throws IOException
+     */
+    public PGPPublicKey generateKeyOnCard(@NonNull KeyType keyType) throws IOException {
+        final byte[] pub = generateKeyCommand(keyType);
 
-        Iso7816TLV tlv = Iso7816TLV.readSingle(pub, true);
-        final byte[] exponent = Iso7816TLV.findRecursive(tlv, 0x82).mV;
-        final byte[] modulus = Iso7816TLV.findRecursive(tlv, 0x81).mV;
+        Iso7816TLV tlv = Iso7816TLV.readSingle(pub, true),
+                tlvExponent = Iso7816TLV.findRecursive(tlv, 0x82),
+                tlvModulus = Iso7816TLV.findRecursive(tlv, 0x81);
+
+        if (tlvExponent == null || tlvModulus == null) {
+            throw new IOException("Invalid generate key response");
+        }
 
 
-        final RSAPublicBCPGKey publicBCPGKey = new RSAPublicBCPGKey(new BigInteger(Hex.toHexString(modulus), 16),
-                new BigInteger(Hex.toHexString(exponent), 16));
+        final RSAPublicBCPGKey publicBCPGKey = new RSAPublicBCPGKey(
+                new BigInteger(Hex.toHexString(tlvModulus.mV), 16),
+                new BigInteger(Hex.toHexString(tlvExponent.mV), 16));
 
-        final PublicSubkeyPacket publicSubkeyPacket = new PublicSubkeyPacket(PublicKeyAlgorithmTags.RSA_GENERAL, new Date(), publicBCPGKey);
+        final PublicSubkeyPacket publicSubkeyPacket = new PublicSubkeyPacket(
+                PublicKeyAlgorithmTags.RSA_GENERAL, new Date(), publicBCPGKey);
+
         PGPPublicKey publicKey = null;
         try {
             publicKey = new PGPPublicKey(publicSubkeyPacket, new BcKeyFingerprintCalculator());
         } catch (PGPException e) {
-            throw new IOException("Failed to generate key");
+            throw new IOException("Failed to create pgp key from tlv");
         }
 
         long keyGenerationTimestamp = publicKey.getCreationTime().getTime() / 1000;
@@ -692,6 +705,8 @@ public class SecurityTokenHelper {
 
         putData(keyType.getFingerprintObjectId(), publicKey.getFingerprint());
         putData(keyType.getTimestampObjectId(), timestampBytes);
+
+        return publicKey;
     }
 
     private String getDataField(String output) {

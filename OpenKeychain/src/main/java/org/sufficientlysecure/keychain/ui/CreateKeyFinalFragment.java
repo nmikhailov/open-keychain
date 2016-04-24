@@ -36,6 +36,7 @@ import android.widget.TextView;
 import org.bouncycastle.bcpg.sig.KeyFlags;
 import org.sufficientlysecure.keychain.Constants;
 import org.sufficientlysecure.keychain.R;
+import org.sufficientlysecure.keychain.keyimport.ParcelableKeyRing;
 import org.sufficientlysecure.keychain.operations.results.EditKeyResult;
 import org.sufficientlysecure.keychain.operations.results.OperationResult;
 import org.sufficientlysecure.keychain.operations.results.UploadResult;
@@ -44,6 +45,7 @@ import org.sufficientlysecure.keychain.pgp.exception.PgpKeyNotFoundException;
 import org.sufficientlysecure.keychain.provider.CachedPublicKeyRing;
 import org.sufficientlysecure.keychain.provider.KeychainContract;
 import org.sufficientlysecure.keychain.provider.ProviderHelper;
+import org.sufficientlysecure.keychain.service.ImportKeyringParcel;
 import org.sufficientlysecure.keychain.service.SaveKeyringParcel;
 import org.sufficientlysecure.keychain.service.SaveKeyringParcel.Algorithm;
 import org.sufficientlysecure.keychain.service.SaveKeyringParcel.ChangeUnlockParcel;
@@ -56,13 +58,13 @@ import org.sufficientlysecure.keychain.util.Log;
 import org.sufficientlysecure.keychain.util.Passphrase;
 import org.sufficientlysecure.keychain.util.Preferences;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
 
 public class CreateKeyFinalFragment extends Fragment {
 
     public static final int REQUEST_EDIT_KEY = 0x00008007;
-    public static final int REQUEST_GEN_KEYS = 0x00008008;
 
     TextView mNameEdit;
     TextView mEmailEdit;
@@ -78,6 +80,7 @@ public class CreateKeyFinalFragment extends Fragment {
     private CryptoOperationHelper<UploadKeyringParcel, UploadResult> mUploadOpHelper;
     private CryptoOperationHelper<SaveKeyringParcel, EditKeyResult> mCreateOpHelper;
     private CryptoOperationHelper<SaveKeyringParcel, EditKeyResult> mMoveToCardOpHelper;
+    private CryptoOperationHelper<ImportKeyringParcel, EditKeyResult> mGenOnCardOpHelper;
 
     // queued results which may trigger delayed actions
     private EditKeyResult mQueuedSaveKeyResult;
@@ -203,6 +206,9 @@ public class CreateKeyFinalFragment extends Fragment {
         }
         if (mUploadOpHelper != null) {
             mUploadOpHelper.handleActivityResult(requestCode, resultCode, data);
+        }
+        if (mGenOnCardOpHelper != null) {
+            mGenOnCardOpHelper.handleActivityResult(requestCode, resultCode, data);
         }
 
         switch (requestCode) {
@@ -375,11 +381,50 @@ public class CreateKeyFinalFragment extends Fragment {
     }
 
     private void createOnCardKey() {
-        Intent intent = new Intent(getActivity(), SecurityTokenOperationActivity.class);
+        /*Intent intent = new Intent(getActivity(), SecurityTokenOperationActivity.class);
         RequiredInputParcel resetP = RequiredInputParcel.createSecurityTokenGenKeysOperation();
         intent.putExtra(SecurityTokenOperationActivity.EXTRA_REQUIRED_INPUT, resetP);
         intent.putExtra(SecurityTokenOperationActivity.EXTRA_CRYPTO_INPUT, new CryptoInputParcel());
-        startActivityForResult(intent, REQUEST_GEN_KEYS);
+        startActivityForResult(intent, REQUEST_GEN_KEYS);*/
+
+        CryptoOperationHelper.Callback<ImportKeyringParcel, EditKeyResult> createKeyCallback
+                = new CryptoOperationHelper.Callback<ImportKeyringParcel, EditKeyResult>() {
+            @Override
+            public ImportKeyringParcel createOperationInput() {
+                final ArrayList<ParcelableKeyRing> keyRings = new ArrayList<>();
+                //keyRings.add(new ParcelableKeyRing());
+
+                return new ImportKeyringParcel(keyRings, null);
+            }
+
+            @Override
+            public void onCryptoOperationSuccess(EditKeyResult result) {
+                if (result.mMasterKeyId != null && mUploadCheckbox.isChecked()) {
+                    // result will be displayed after upload
+                    uploadKey(result);
+                    return;
+                }
+
+                finishWithResult(result);
+            }
+
+            @Override
+            public void onCryptoOperationCancelled() {
+            }
+
+            @Override
+            public void onCryptoOperationError(EditKeyResult result) {
+                displayResult(result);
+            }
+
+            @Override
+            public boolean onCryptoSetProgress(String msg, int progress, int max) {
+                return false;
+            }
+        };
+
+        mGenOnCardOpHelper = new CryptoOperationHelper<>(1, this, createKeyCallback, R.string.progress_building_key);
+        mGenOnCardOpHelper.cryptoOperation();
     }
 
     private void displayResult(EditKeyResult result) {
